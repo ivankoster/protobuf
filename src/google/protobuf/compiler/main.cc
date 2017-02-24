@@ -45,6 +45,7 @@
 #include <google/protobuf/compiler/objectivec/objectivec_generator.h>
 #include <google/protobuf/compiler/php/php_generator.h>
 #include <google/protobuf/compiler/ruby/ruby_generator.h>
+#include <google/protobuf/compiler/nim/nim_generator.h>
 #endif  // ! OPENSOURCE_PROTOBUF_CPP_BOOTSTRAP
 
 int main(int argc, char* argv[]) {
@@ -100,6 +101,11 @@ int main(int argc, char* argv[]) {
   google::protobuf::compiler::js::Generator js_generator;
   cli.RegisterGenerator("--js_out", &js_generator,
                         "Generate JavaScript source.");
+
+  // Nim
+  google::protobuf::compiler::nim::Generator nim_generator;
+  cli.RegisterGenerator("--nim_out", &nim_generator,
+	  "Generate Nim source.");
 #endif  // !OPENSOURCE_PROTOBUF_CPP_BOOTSTRAP
 
   return cli.Run(argc, argv);
