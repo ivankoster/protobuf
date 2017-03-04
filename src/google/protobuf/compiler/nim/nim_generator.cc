@@ -83,7 +83,7 @@ namespace nim {
         printer->Print("type\n");
         printer->Indent();
         printer->Print(
-            "^messageName^ = object\n",
+            "^messageName^* = object\n",
             "messageName", MessageName(message));
 
         printer->Indent();
@@ -95,7 +95,7 @@ namespace nim {
                 printer->Print("repeated ");
             }
             printer->Print(
-                "^name^: ^type^\n",
+                "^name^*: ^type^\n",
                 "name", field->name(),
                 "type", TypeForField(field));
         }
