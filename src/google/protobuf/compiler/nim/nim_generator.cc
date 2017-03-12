@@ -49,7 +49,22 @@ namespace nim {
         }
     }
 
-    void GenerateWriteToFunc(const Descriptor* message, io::Printer* printer)
+	void GenerateFieldDefs(const Descriptor* message, io::Printer* printer)
+	{
+		for (size_t i = 0; i < message->field_count(); i++)
+		{
+			const FieldDescriptor* field = message->field(i);
+			string type = field->type_name();
+			type[0] = toupper(type[0]);
+			printer->Print(
+				"^name^: Pb^type^ @^number^\n",
+				"name", field->name(),
+				"type", type,
+				"number", SimpleItoa(field->number()));
+		}
+	}
+
+	void GenerateWriteToFunc(const Descriptor* message, io::Printer* printer)
     {
         printer->Print(
             "proc WriteTo*(message: ^messageName^, output: var CodedOutputStream) =\n",
@@ -57,21 +72,25 @@ namespace nim {
         printer->Indent();
         printer->Print("PbWriteTo(message, output):\n");
         printer->Indent();
-        for (size_t i = 0; i < message->field_count(); i++)
-        {
-            const FieldDescriptor* field = message->field(i);
-            string type = field->type_name();
-            type[0] = toupper(type[0]);
-            printer->Print(
-                "^name^: Pb^type^ @^number^\n",
-                "name", field->name(),
-                "type", type,
-                "number", SimpleItoa(field->number()));
-        }
+		GenerateFieldDefs(message, printer);
         printer->Print("\n");
         printer->Outdent();
         printer->Outdent();
     }
+
+	void GenerateMergeFromFunc(const Descriptor* message, io::Printer* printer)
+	{
+		printer->Print(
+			"proc MergeFrom*(message: var ^messageName^, input: CodedInputStream) =\n",
+			"messageName", MessageName(message));
+		printer->Indent();
+		printer->Print("PbMergeFrom(message, input):\n");
+		printer->Indent();
+		GenerateFieldDefs(message, printer);
+		printer->Print("\n");
+		printer->Outdent();
+		printer->Outdent();
+	}
 
     void GenerateMessage(const Descriptor* message, io::Printer* printer)
     {
@@ -104,6 +123,7 @@ namespace nim {
         printer->Print("\n");
 
         GenerateWriteToFunc(message, printer);
+		GenerateMergeFromFunc(message, printer);
     }
 
     void GenerateFile(const FileDescriptor* file, GeneratorContext* generator_context)
