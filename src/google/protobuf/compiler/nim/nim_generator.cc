@@ -12,6 +12,39 @@ namespace protobuf {
 namespace compiler {
 namespace nim {
 
+    std::string EnumName(const EnumDescriptor* enumDescriptor)
+    {
+        string enum_name = enumDescriptor->name();
+        const Descriptor* descriptor = enumDescriptor->containing_type();
+        while (descriptor != NULL) {
+            enum_name = descriptor->name() + '_' + enum_name;
+            descriptor = descriptor->containing_type();
+        }
+
+        return enum_name;
+    }
+
+    void GenerateEnum(const EnumDescriptor* enumDescriptor, io::Printer* printer)
+    {
+        printer->Print("type\n");
+        printer->Indent();
+        printer->Print(
+            "^enumName^* = enum\n",
+            "enumName", EnumName(enumDescriptor));
+
+        printer->Indent();
+        for (size_t i = 0; i < enumDescriptor->value_count(); i++)
+        {
+            printer->Print(
+                "^name^ = ^number^,\n",
+                "name", enumDescriptor->value(i)->name(),
+                "number", SimpleItoa(enumDescriptor->value(i)->number()));
+        }
+        printer->Outdent();
+        printer->Outdent();
+        printer->Print("\n");
+    }
+
     std::string MessageName(const Descriptor* message)
     {
         string message_name = message->name();
@@ -24,73 +57,63 @@ namespace nim {
         return message_name;
     }
 
-    std::string TypeForField(const FieldDescriptor* field) 
+    void GenerateFieldDefs(const Descriptor* message, io::Printer* printer)
     {
-        switch (field->type()) {
-        case FieldDescriptor::TYPE_MESSAGE: return MessageName(field->message_type());
-        case FieldDescriptor::TYPE_INT32: return "int32";
-        case FieldDescriptor::TYPE_INT64:
-        case FieldDescriptor::TYPE_UINT32:
-        case FieldDescriptor::TYPE_UINT64:
-        case FieldDescriptor::TYPE_SINT32:
-        case FieldDescriptor::TYPE_SINT64:
-        case FieldDescriptor::TYPE_FIXED32:
-        case FieldDescriptor::TYPE_FIXED64:
-        case FieldDescriptor::TYPE_SFIXED32:
-        case FieldDescriptor::TYPE_SFIXED64:
-        case FieldDescriptor::TYPE_ENUM:
-        case FieldDescriptor::TYPE_DOUBLE:
-        case FieldDescriptor::TYPE_FLOAT:
-        case FieldDescriptor::TYPE_BOOL:
-        case FieldDescriptor::TYPE_STRING:
-        case FieldDescriptor::TYPE_BYTES:
-        case FieldDescriptor::TYPE_GROUP: return "typeNotImplementedYet";
-        default: assert(false); return "";
+        const OneofDescriptor* declaringOneof = NULL;
+        for (size_t i = 0; i < message->field_count(); i++)
+        {
+            const FieldDescriptor* field = message->field(i);
+            string type;
+            const OneofDescriptor* oneof = field->containing_oneof();
+            if (oneof != NULL && declaringOneof != oneof)
+            {   // Open new oneof type definition
+                declaringOneof = oneof;
+                printer->Print(
+                    "PbOneOf ^oneofName^:\n",
+                    "oneofName", oneof->name());
+            }
+
+            if (field->type() == FieldDescriptor::TYPE_ENUM)
+            {
+                type = EnumName(field->enum_type());
+            }
+            else
+            {   // Value types
+                type = field->type_name();
+                type[0] = toupper(type[0]);
+                type = "Pb" + type;
+            }
+            if (oneof != NULL) printer->Indent();
+            printer->Print(
+                "^name^: ^type^ @^number^\n",
+                "name", field->name(),
+                "type", type,
+                "number", SimpleItoa(field->number()));
+            if (oneof != NULL) printer->Outdent();
         }
     }
 
-	void GenerateFieldDefs(const Descriptor* message, io::Printer* printer)
-	{
-		for (size_t i = 0; i < message->field_count(); i++)
-		{
-			const FieldDescriptor* field = message->field(i);
-			string type = field->type_name();
-			type[0] = toupper(type[0]);
-			printer->Print(
-				"^name^: Pb^type^ @^number^\n",
-				"name", field->name(),
-				"type", type,
-				"number", SimpleItoa(field->number()));
-		}
-	}
-
-	void GenerateWriteToFunc(const Descriptor* message, io::Printer* printer)
+    void GenerateWriteToFunc(const Descriptor* message, io::Printer* printer)
     {
         printer->Print(
             "proc WriteTo*(message: ^messageName^, output: var CodedOutputStream) =\n",
             "messageName", MessageName(message));
         printer->Indent();
-        printer->Print("PbWriteTo(message, output):\n");
-        printer->Indent();
-		GenerateFieldDefs(message, printer);
+        printer->Print("PbWriteTo(message, output)\n");
+        printer->Outdent();
         printer->Print("\n");
-        printer->Outdent();
-        printer->Outdent();
     }
 
-	void GenerateMergeFromFunc(const Descriptor* message, io::Printer* printer)
-	{
-		printer->Print(
-			"proc MergeFrom*(message: var ^messageName^, input: CodedInputStream) =\n",
-			"messageName", MessageName(message));
-		printer->Indent();
-		printer->Print("PbMergeFrom(message, input):\n");
-		printer->Indent();
-		GenerateFieldDefs(message, printer);
-		printer->Print("\n");
-		printer->Outdent();
-		printer->Outdent();
-	}
+    void GenerateMergeFromFunc(const Descriptor* message, io::Printer* printer)
+    {
+        printer->Print(
+            "proc MergeFrom*(message: var ^messageName^, input: CodedInputStream) =\n",
+            "messageName", MessageName(message));
+        printer->Indent();
+        printer->Print("PbMergeFrom(message, input)\n");
+        printer->Outdent();
+        printer->Print("\n");
+    }
 
     void GenerateMessage(const Descriptor* message, io::Printer* printer)
     {
@@ -99,50 +122,50 @@ namespace nim {
             GenerateMessage(message->nested_type(i), printer);
         }
 
-        printer->Print("type\n");
-        printer->Indent();
         printer->Print(
-            "^messageName^* = object\n",
+            "PbMessage ^messageName^:\n",
             "messageName", MessageName(message));
 
         printer->Indent();
-        for (size_t i = 0; i < message->field_count(); i++)
-        {
-            const FieldDescriptor* field = message->field(i);
-            if (field->is_repeated())
-            {
-                printer->Print("repeated ");
-            }
-            printer->Print(
-                "^name^*: ^type^\n",
-                "name", field->name(),
-                "type", TypeForField(field));
-        }
-        printer->Outdent();
+        GenerateFieldDefs(message, printer);
         printer->Outdent();
         printer->Print("\n");
 
         GenerateWriteToFunc(message, printer);
-		GenerateMergeFromFunc(message, printer);
+        GenerateMergeFromFunc(message, printer);
     }
 
-    void GenerateFile(const FileDescriptor* file, GeneratorContext* generator_context)
+    void GenerateFile(const FileDescriptor* file, io::Printer* printer)
     {
+        printer->Print(
+            "# Generated by the protocol buffer compiler.  DO NOT EDIT!\n"
+            "# source: ^filename^\n"
+            "\n"
+            "import protobuf\n"
+            "\n",
+            "filename", file->name());
+
+        for (size_t i = 0; i < file->enum_type_count(); i++)
+        {
+            GenerateEnum(file->enum_type(i), printer);
+        }
+
         for (size_t i = 0; i < file->message_type_count(); i++)
         {
-            string filename = MessageName(file->message_type(i)) + ".nim";
-            scoped_ptr<io::ZeroCopyOutputStream> output(generator_context->Open(filename));
-            io::Printer printer(output.get(), '^');
-            printer.Print(
-                "# Generated by the protocol buffer compiler.  DO NOT EDIT!\n"
-                "# source: ^filename^\n"
-                "\n"
-                "import protobuf\n"
-                "\n",
-                "filename", file->name());
-
-            GenerateMessage(file->message_type(i), &printer);
+            GenerateMessage(file->message_type(i), printer);
         }
+    }
+
+    std::string StripDotProto(const std::string& proto_file) {
+        int lastindex = proto_file.find_last_of(".");
+        return proto_file.substr(0, lastindex);
+    }
+
+    std::string GetFileNameBase(const FileDescriptor* descriptor) {
+        std::string proto_file = descriptor->name();
+        int lastslash = proto_file.find_last_of("/");
+        std::string base = proto_file.substr(lastslash + 1);
+        return StripDotProto(base);
     }
 
     bool Generator::Generate(const FileDescriptor* file, const string& parameter,
@@ -155,7 +178,12 @@ namespace nim {
                 "Please add 'syntax = \"proto3\";' to the top of your .proto file.\n";
             return false;
         }
-        GenerateFile(file, generator_context);
+
+        string filename = GetFileNameBase(file) + ".nim";
+        scoped_ptr<io::ZeroCopyOutputStream> output(generator_context->Open(filename));
+        io::Printer printer(output.get(), '^');
+
+        GenerateFile(file, &printer);
         return true;
     }
 }  // namespace nim

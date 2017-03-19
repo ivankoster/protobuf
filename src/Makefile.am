@@ -163,6 +163,7 @@ nobase_include_HEADERS =                                         \
   google/protobuf/compiler/javanano/javanano_generator.h         \
   google/protobuf/compiler/js/js_generator.h                     \
   google/protobuf/compiler/js/well_known_types_embed.h           \
+  google/protobuf/compiler/nim/nim_generator.h                   \
   google/protobuf/compiler/objectivec/objectivec_generator.h     \
   google/protobuf/compiler/objectivec/objectivec_helpers.h       \
   google/protobuf/compiler/php/php_generator.h                   \
@@ -425,6 +426,7 @@ libprotoc_la_SOURCES =                                         \
   google/protobuf/compiler/javanano/javanano_params.h          \
   google/protobuf/compiler/javanano/javanano_primitive_field.cc \
   google/protobuf/compiler/javanano/javanano_primitive_field.h \
+  google/protobuf/compiler/nim/nim_generator.cc                \
   google/protobuf/compiler/objectivec/objectivec_enum.cc       \
   google/protobuf/compiler/objectivec/objectivec_enum.h        \
   google/protobuf/compiler/objectivec/objectivec_enum_field.cc \
